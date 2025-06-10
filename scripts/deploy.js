@@ -10,27 +10,29 @@ async function main() {
   const NAME = "Shibsnax";
   const SYMBOL = "SNAX";
   const MAX_SUPPLY = "1000000";
-  const PRICE = hre.ethers.parseEther("0.025");
+  const PRICE = ethers.utils.parseUnits("0.025", "ether");
 
   const Token = await hre.ethers.getContractFactory("Token");
   let token = await Token.deploy(NAME, SYMBOL, MAX_SUPPLY);
-  await token.waitForDeployment();
+  await token.deployed();
 
-  console.log(`Token deployed to: ${await token.getAddress()}\n`);
+  console.log(`Token deployed to: ${token.address}\n`);
 
   const Crowdsale = await hre.ethers.getContractFactory("Crowdsale");
   let crowdsale = await Crowdsale.deploy(
-    await token.getAddress(),
+    token.address,
     PRICE,
-    MAX_SUPPLY
+    ethers.utils.parseUnits(MAX_SUPPLY, "ether")
   );
-  await crowdsale.waitForDeployment();
+  await crowdsale.deployed();
 
-  console.log(`Crowdsale deployed to: ${await crowdsale.getAddress()}\n`);
+  console.log(`Crowdsale deployed to: ${crowdsale.address}\n`);
+
+  console.log(ethers.utils.parseUnits(MAX_SUPPLY, "ether"));
 
   const transaction = await token.transfer(
-    await crowdsale.getAddress(),
-    hre.ethers.parseEther(MAX_SUPPLY)
+    crowdsale.address,
+    ethers.utils.parseUnits(MAX_SUPPLY, "ether")
   );
   await transaction.wait();
 
