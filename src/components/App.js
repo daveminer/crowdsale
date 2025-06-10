@@ -3,6 +3,7 @@ import Info from "./Info";
 import Navigation from "./Navigation";
 import { ethers } from "ethers";
 import { useEffect, useState } from "react";
+import Buy from "./Buy";
 import Loading from "./Loading";
 import Progress from "./Progress";
 // ABIs
@@ -81,7 +82,7 @@ function App() {
     <Container>
       <Navigation />
 
-      <h1 className="my-4">Introducing ShibSnax Token!</h1>
+      <h1 className="my-4 text-center">Introducing ShibSnax Token!</h1>
       {isLoading ? (
         <Loading />
       ) : (
@@ -89,6 +90,12 @@ function App() {
           <p className="text-center">
             <strong>Current Price:</strong> {price} ETH
           </p>
+          <Buy
+            provider={provider}
+            price={price}
+            crowdsale={crowdsale}
+            setIsLoading={setIsLoading}
+          />
           <Progress tokensSold={tokensSold} maxTokens={maxTokens} />
         </>
       )}
