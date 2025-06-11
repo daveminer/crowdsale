@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 const tokens = (n) => {
-  return ethers.parseEther(n.toString());
+  return ethers.utils.parseEther(n.toString());
 };
 
 const ether = tokens;
@@ -18,35 +18,34 @@ describe("Crowdsale", () => {
 
     // Deploy Token
     token = await Token.deploy("Shibsnax", "SNAX", "1000000");
-    await token.waitForDeployment();
+    await token.deployed();
 
     // Deploy Crowdsale
     accounts = await ethers.getSigners();
     deployer = accounts[0];
     user1 = accounts[1];
+    user2 = accounts[2];
 
     // Send tokens to crowdsale
-    crowdsale = await Crowdsale.deploy(
-      await token.getAddress(),
-      ether(1),
-      "1000000"
-    );
-    await crowdsale.waitForDeployment();
+    crowdsale = await Crowdsale.deploy(token.address, ether(1), "1000000", [
+      user1.address,
+    ]);
+    await crowdsale.deployed();
 
     let transaction = await token
       .connect(deployer)
-      .transfer(await crowdsale.getAddress(), tokens(1000000));
+      .transfer(crowdsale.address, tokens(1000000));
     result = await transaction.wait();
   });
 
   describe("Deployment", () => {
     it("sends tokens to the Crowdsale contract", async () => {
-      expect(await token.balanceOf(await crowdsale.getAddress())).to.equal(
+      expect(await token.balanceOf(crowdsale.address)).to.equal(
         tokens(1000000)
       );
     });
     it("returns token address", async () => {
-      expect(await crowdsale.token()).to.equal(await token.getAddress());
+      expect(await crowdsale.token()).to.equal(token.address);
     });
   });
 
@@ -63,18 +62,16 @@ describe("Crowdsale", () => {
       });
 
       it("transfers tokens", async () => {
-        expect(await token.balanceOf(await crowdsale.getAddress())).to.equal(
+        expect(await token.balanceOf(crowdsale.address)).to.equal(
           tokens(999990)
         );
-        expect(await token.balanceOf(await user1.getAddress())).to.equal(
-          amount
-        );
+        expect(await token.balanceOf(user1.address)).to.equal(amount);
       });
 
       it("updates contracts ether balance", async () => {
-        expect(
-          await ethers.provider.getBalance(await crowdsale.getAddress())
-        ).to.equal(amount);
+        expect(await ethers.provider.getBalance(crowdsale.address)).to.equal(
+          amount
+        );
       });
 
       it("updates tokensSold", async () => {
@@ -93,6 +90,12 @@ describe("Crowdsale", () => {
         await expect(crowdsale.connect(user1).buyTokens(amount, { value: 0 }))
           .to.be.reverted;
       });
+
+      it("rejects non-allowed addresses", async () => {
+        await expect(
+          crowdsale.connect(user2).buyTokens(amount, { value: ether(10) })
+        ).to.be.reverted;
+      });
     });
   });
 
@@ -103,22 +106,28 @@ describe("Crowdsale", () => {
     describe("Success", () => {
       beforeEach(async () => {
         transaction = await user1.sendTransaction({
-          to: await crowdsale.getAddress(),
+          to: crowdsale.address,
           value: amount,
         });
         result = await transaction.wait();
       });
 
       it("updates contracts ether balance", async () => {
-        expect(
-          await ethers.provider.getBalance(await crowdsale.getAddress())
-        ).to.equal(amount);
+        expect(await ethers.provider.getBalance(crowdsale.address)).to.equal(
+          amount
+        );
       });
 
       it("updates user token balance", async () => {
-        expect(await token.balanceOf(await user1.getAddress())).to.equal(
-          amount
-        );
+        expect(await token.balanceOf(user1.address)).to.equal(amount);
+      });
+    });
+
+    describe("Failure", () => {
+      it("rejects non-allowed addresses", async () => {
+        await expect(
+          user2.sendTransaction({ to: crowdsale.address, value: amount })
+        ).to.be.reverted;
       });
     });
   });
@@ -135,6 +144,12 @@ describe("Crowdsale", () => {
 
       it("updates the price", async () => {
         expect(await crowdsale.price()).to.equal(price);
+      });
+    });
+
+    describe("Failure", () => {
+      it("prevents non-owner from updating price", async () => {
+        await expect(crowdsale.connect(user1).setPrice(price)).to.be.reverted;
       });
     });
   });
@@ -157,17 +172,15 @@ describe("Crowdsale", () => {
       });
 
       it("transfers remaining tokens to owner", async () => {
-        expect(await token.balanceOf(await crowdsale.getAddress())).to.equal(
-          tokens(0)
-        );
-        expect(await token.balanceOf(await deployer.getAddress())).to.equal(
+        expect(await token.balanceOf(crowdsale.address)).to.equal(tokens(0));
+        expect(await token.balanceOf(deployer.address)).to.equal(
           tokens(999990)
         );
       });
 
       it("transfers ETH balance to owner", async () => {
         expect(
-          await ethers.provider.getBalance(await crowdsale.getAddress())
+          await ethers.provider.getBalance(await crowdsale.address)
         ).to.equal(0);
       });
 
@@ -182,6 +195,18 @@ describe("Crowdsale", () => {
       it("prevents non-owner from finalizing", async () => {
         await expect(crowdsale.connect(user1).finalize()).to.be.reverted;
       });
+    });
+  });
+
+  describe("Allowed Addresses", () => {
+    it("allows the owner to add addresses", async () => {
+      await crowdsale.connect(deployer).addAllowedAddress(user2.address);
+      expect(await crowdsale.isAllowed(user2.address)).to.equal(true);
+    });
+
+    it("allows the owner to remove addresses", async () => {
+      await crowdsale.connect(deployer).removeAllowedAddress(user2.address);
+      expect(await crowdsale.isAllowed(user2.address)).to.equal(false);
     });
   });
 });
