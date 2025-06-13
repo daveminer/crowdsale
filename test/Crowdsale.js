@@ -199,14 +199,33 @@ describe("Crowdsale", () => {
   });
 
   describe("Allowed Addresses", () => {
-    it("allows the owner to add addresses", async () => {
-      await crowdsale.connect(deployer).addAllowedAddress(user2.address);
-      expect(await crowdsale.isAllowed(user2.address)).to.equal(true);
+    describe("Success", () => {
+      it("allows the owner to add and remove addresses", async () => {
+        await crowdsale.connect(deployer).addAllowedAddress(user2.address);
+        expect(await crowdsale.isAllowed(user2.address)).to.equal(true);
+        await crowdsale.connect(deployer).removeAllowedAddress(user2.address);
+        expect(await crowdsale.isAllowed(user2.address)).to.equal(false);
+      });
     });
 
-    it("allows the owner to remove addresses", async () => {
-      await crowdsale.connect(deployer).removeAllowedAddress(user2.address);
-      expect(await crowdsale.isAllowed(user2.address)).to.equal(false);
+    describe("Failure", () => {
+      it("prevents non-owner from adding addresses", async () => {
+        await expect(crowdsale.connect(user1).addAllowedAddress(user2.address))
+          .to.be.reverted;
+      });
+
+      it("won't allow deletions for addresses that don't exist", async () => {
+        await expect(
+          crowdsale.connect(user1).removeAllowedAddress(user1.address)
+        ).to.be.reverted;
+      });
+
+      it("wont' allow adding the same address twice", async () => {
+        await crowdsale.connect(deployer).addAllowedAddress(user2.address);
+        await expect(
+          crowdsale.connect(deployer).addAllowedAddress(user2.address)
+        ).to.be.reverted;
+      });
     });
   });
 });
