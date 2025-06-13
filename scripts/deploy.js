@@ -7,6 +7,9 @@
 const hre = require("hardhat");
 
 async function main() {
+  const [deployer] = await hre.ethers.getSigners();
+  console.log("Deploying contracts with the account:", deployer.address);
+
   const NAME = "Shibsnax";
   const SYMBOL = "SNAX";
   const MAX_SUPPLY = "1000000";
@@ -22,13 +25,12 @@ async function main() {
   let crowdsale = await Crowdsale.deploy(
     token.address,
     PRICE,
-    ethers.utils.parseUnits(MAX_SUPPLY, "ether")
+    ethers.utils.parseUnits(MAX_SUPPLY, "ether"),
+    []
   );
   await crowdsale.deployed();
 
   console.log(`Crowdsale deployed to: ${crowdsale.address}\n`);
-
-  console.log(ethers.utils.parseUnits(MAX_SUPPLY, "ether"));
 
   const transaction = await token.transfer(
     crowdsale.address,

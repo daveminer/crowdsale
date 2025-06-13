@@ -9,7 +9,7 @@ contract Crowdsale {
     uint256 public price;
     uint256 public maxTokens;
     uint256 public tokensSold;
-    mapping(address => bool) public allowedAddresses;
+    address[] public allowedAddresses;
 
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
@@ -20,7 +20,7 @@ contract Crowdsale {
         price = _price;
         maxTokens = _maxTokens;
         for (uint256 i = 0; i < _initialAddresses.length; i++) {
-            allowedAddresses[_initialAddresses[i]] = true;
+            allowedAddresses.push(_initialAddresses[i]);
         }
     }
 
@@ -47,11 +47,6 @@ contract Crowdsale {
         _;
     }
 
-    modifier onlyAllowedAddresses() {
-        require(isAllowed(msg.sender), "Caller is not allowed");
-        _;
-    }
-
     function setPrice(uint256 _price) public onlyOwner {
         price = _price;
     }
@@ -67,14 +62,31 @@ contract Crowdsale {
     }
 
     function addAllowedAddress(address _address) public onlyOwner {
-        allowedAddresses[_address] = true;
+        require(!isAllowed(_address), "Address is already in the allowed list");
+        allowedAddresses.push(_address);
     }
 
     function removeAllowedAddress(address _address) public onlyOwner {
-        allowedAddresses[_address] = false;
+        require(isAllowed(_address), "Address is not in the allowed list");
+        for (uint256 i = 0; i < allowedAddresses.length; i++) {
+            if (allowedAddresses[i] == _address) {
+                allowedAddresses[i] = allowedAddresses[allowedAddresses.length - 1];
+                allowedAddresses.pop();
+                break;
+            }
+        }
     }
 
     function isAllowed(address _address) public view returns (bool) {
-        return allowedAddresses[_address];
+        for (uint256 i = 0; i < allowedAddresses.length; i++) {
+            if (allowedAddresses[i] == _address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function allowedAddressesLength() public view returns (uint256) {
+        return allowedAddresses.length;
     }
 }
