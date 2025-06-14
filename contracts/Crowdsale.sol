@@ -11,9 +11,12 @@ contract Crowdsale {
     uint256 public tokensSold;
     address[] public allowedAddresses;
     uint256 public activeOn;
+    uint256 public fundByDate;
+    uint256 public fundingGoal;
     uint256 public minPurchase;
     uint256 public maxPurchase;
-
+    mapping(address => uint256) public purchases;
+    
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
 
@@ -23,6 +26,8 @@ contract Crowdsale {
         uint256 _maxTokens,
         address[] memory _initialAddresses,
         uint256 _activeOn,
+        uint256 _fundByDate,
+        uint256 _fundingGoal,
         uint256 _minPurchase,
         uint256 _maxPurchase
     ) {
@@ -31,19 +36,16 @@ contract Crowdsale {
         price = _price;
         maxTokens = _maxTokens;
         activeOn = _activeOn;
+        fundByDate = _fundByDate;
+        fundingGoal = _fundingGoal;
         minPurchase = _minPurchase;
         maxPurchase = _maxPurchase;
         for (uint256 i = 0; i < _initialAddresses.length; i++) {
             allowedAddresses.push(_initialAddresses[i]);
         }
-
     }
 
-    receive() external payable canBuy(msg.sender, msg.value) {
-        sellTokens(msg.value);
-    }
-
-    function buyTokens(uint256 _amount) public payable canBuy(msg.sender, _amount) {
+    receive() external payable canBuy(msg.sender, msg.value) notCancelled {
         sellTokens(msg.value);
     }
 
@@ -60,8 +62,38 @@ contract Crowdsale {
         require(_amount <= maxPurchase * 1e18, "Amount is greater than the maximum purchase");
         require(token.balanceOf(address(this)) >= _amount, "Insufficient tokens");
         require(token.transfer(msg.sender, _amount), "Transfer failed");
-        
+
         _;
+    }
+
+    modifier cancelled() {
+        require(block.timestamp >= fundByDate && tokensSold < fundingGoal, "Crowdsale is not cancelled");
+        _;
+    }
+
+    modifier notCancelled() {
+        require(block.timestamp <= fundByDate || tokensSold >= fundingGoal, "Crowdsale is cancelled");
+        _;
+    }
+
+    function buyTokens(uint256 _amount) public payable canBuy(msg.sender, _amount) notCancelled {
+        sellTokens(msg.value);
+    }
+
+    function claimRefund() public cancelled {
+        uint256 amount = purchases[msg.sender];
+        require(amount > 0, "No tokens purchased");
+        purchases[msg.sender] = 0;
+        
+        // Calculate ETH amount to refund
+        uint256 ethAmount = (amount * price) / 1e18;
+        require(address(this).balance >= ethAmount, "Insufficient contract balance");
+        
+        // Require user to send tokens back
+        require(token.transferFrom(msg.sender, address(this), amount), "Token transfer failed");
+        
+        (bool sent, ) = msg.sender.call{value: ethAmount}("");
+        require(sent, "Transfer failed");
     }
 
     function setPrice(uint256 _price) public onlyOwner {
@@ -111,7 +143,7 @@ contract Crowdsale {
         uint256 tokenAmount = (_amount * 1e18) / price;
 
         tokensSold += tokenAmount;
-
+        purchases[msg.sender] += tokenAmount;
         emit Buy(tokenAmount, msg.sender);
     }
 }

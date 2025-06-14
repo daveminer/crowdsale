@@ -28,9 +28,17 @@ async function main() {
     token.address,
     PRICE,
     ethers.utils.parseUnits(MAX_SUPPLY, "ether"),
+    // Allowed addresses
     [],
-    block.timestamp + 60, // Set to 1 minute from now,
+    // Active on
+    block.timestamp + 60,
+    // Fund by date
+    block.timestamp + 10000,
+    // Funding goal
+    100,
+    // Min purchase
     1,
+    // Max purchase
     100
   );
   await crowdsale.deployed();
