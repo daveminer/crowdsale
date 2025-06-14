@@ -11,16 +11,28 @@ contract Crowdsale {
     uint256 public tokensSold;
     address[] public allowedAddresses;
     uint256 public activeOn;
+    uint256 public minPurchase;
+    uint256 public maxPurchase;
 
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
 
-    constructor(Token _token, uint256 _price, uint256 _maxTokens, address[] memory _initialAddresses, uint256 _activeOn) {
+    constructor(
+        Token _token,
+        uint256 _price,
+        uint256 _maxTokens,
+        address[] memory _initialAddresses,
+        uint256 _activeOn,
+        uint256 _minPurchase,
+        uint256 _maxPurchase
+    ) {
         owner = msg.sender;
         token = _token;
         price = _price;
         maxTokens = _maxTokens;
         activeOn = _activeOn;
+        minPurchase = _minPurchase;
+        maxPurchase = _maxPurchase;
         for (uint256 i = 0; i < _initialAddresses.length; i++) {
             allowedAddresses.push(_initialAddresses[i]);
         }
@@ -28,14 +40,25 @@ contract Crowdsale {
 
     receive() external payable {
         require(isAllowed(msg.sender), "Caller is not in the list of allowed addresses");
-        uint256 amount = msg.value / price;
-        buyTokens(amount * 1e18);
+        require(block.timestamp >= activeOn, "Crowdsale is not active");
+
+        uint256 tokenAmount = (msg.value * 1e18) / price;
+        require(tokenAmount >= minPurchase * 1e18, "Amount is less than the minimum purchase");
+        require(tokenAmount <= maxPurchase * 1e18, "Amount is greater than the maximum purchase");
+        require(token.balanceOf(address(this)) >= tokenAmount);
+        require(token.transfer(msg.sender, tokenAmount));
+
+        tokensSold += tokenAmount;
+        
+        emit Buy(tokenAmount, msg.sender);
     }
 
     function buyTokens(uint256 _amount) public payable {
-        require(msg.value == ((_amount / 1e18) * price));
+        require(msg.value == (_amount * price) / 1e18);
         require(isAllowed(msg.sender), "Caller is not in the list of allowed addresses");
         require(block.timestamp >= activeOn, "Crowdsale is not active");
+        require(_amount >= minPurchase * 1e18, "Amount is less than the minimum purchase");
+        require(_amount <= maxPurchase * 1e18, "Amount is greater than the maximum purchase");
         require(token.balanceOf(address(this)) >= _amount);
         require(token.transfer(msg.sender, _amount));
 

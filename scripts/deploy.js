@@ -29,7 +29,9 @@ async function main() {
     PRICE,
     ethers.utils.parseUnits(MAX_SUPPLY, "ether"),
     [],
-    block.timestamp + 60 // Set to 1 minute from now
+    block.timestamp + 60, // Set to 1 minute from now,
+    1,
+    100
   );
   await crowdsale.deployed();
 

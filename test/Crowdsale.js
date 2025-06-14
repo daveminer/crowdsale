@@ -34,7 +34,9 @@ describe("Crowdsale", () => {
       ether(1),
       "1000000",
       [user1.address],
-      block.timestamp - 1000
+      block.timestamp - 1000,
+      1,
+      100
     );
     await crowdsale.deployed();
 
@@ -112,7 +114,9 @@ describe("Crowdsale", () => {
           ether(1),
           "1000000",
           [user1.address],
-          block.timestamp + 1000
+          block.timestamp + 1000,
+          1,
+          100
         );
 
         await expect(
@@ -120,6 +124,20 @@ describe("Crowdsale", () => {
             .connect(user1)
             .buyTokens(amount, { value: ether(10) })
         ).to.be.revertedWith("Crowdsale is not active");
+      });
+
+      it("rejects minimum purchase", async () => {
+        await expect(
+          crowdsale.connect(user1).buyTokens(tokens(0.9), { value: ether(0.9) })
+        ).to.be.revertedWith("Amount is less than the minimum purchase");
+      });
+
+      it("rejects maximum purchase", async () => {
+        await expect(
+          crowdsale
+            .connect(user1)
+            .buyTokens(tokens(100.1), { value: ether(100.1) })
+        ).to.be.revertedWith("Amount is greater than the maximum purchase");
       });
     });
   });
@@ -153,6 +171,50 @@ describe("Crowdsale", () => {
         await expect(
           user2.sendTransaction({ to: crowdsale.address, value: amount })
         ).to.be.reverted;
+      });
+
+      it("rejects transfers before the activation time", async () => {
+        const Crowdsale = await ethers.getContractFactory("Crowdsale");
+        const block = await ethers.provider.getBlock("latest");
+
+        let timelockedCrowdsale = await Crowdsale.deploy(
+          token.address,
+          ether(1),
+          "1000000",
+          [user1.address],
+          block.timestamp + 1000,
+          1,
+          10
+        );
+
+        await expect(
+          user1.sendTransaction({
+            to: timelockedCrowdsale.address,
+            value: amount,
+          })
+        ).to.be.revertedWith("Crowdsale is not active");
+      });
+
+      it("rejects insufficient tokens", async () => {
+        await expect(
+          crowdsale
+            .connect(user1)
+            .buyTokens(tokens(100.1), { value: ether(100.1) })
+        ).to.be.revertedWith("Amount is greater than the maximum purchase");
+      });
+
+      it("reject purchases below the minimum purchase", async () => {
+        await expect(
+          crowdsale.connect(user1).buyTokens(tokens(0.9), { value: ether(0.9) })
+        ).to.be.revertedWith("Amount is less than the minimum purchase");
+      });
+
+      it("rejects purchases above the maximum purchase", async () => {
+        await expect(
+          crowdsale
+            .connect(user1)
+            .buyTokens(tokens(100.1), { value: ether(100.1) })
+        ).to.be.revertedWith("Amount is greater than the maximum purchase");
       });
     });
   });
