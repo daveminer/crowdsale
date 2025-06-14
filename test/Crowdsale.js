@@ -33,9 +33,17 @@ describe("Crowdsale", () => {
       token.address,
       ether(1),
       "1000000",
+      // Allowed addresses
       [user1.address],
+      // Active on
       block.timestamp - 1000,
+      // Fund by date
+      block.timestamp + 1000,
+      // Funding goal
+      "10000000000000000000",
+      // Min purchase
       1,
+      // Max purchase
       100
     );
     await crowdsale.deployed();
@@ -113,9 +121,17 @@ describe("Crowdsale", () => {
           token.address,
           ether(1),
           "1000000",
+          // Allowed addresses
           [user1.address],
+          // Active on
           block.timestamp + 1000,
+          // Fund by date
+          block.timestamp + 10000,
+          // Funding goal
+          100,
+          // Min purchase
           1,
+          // Max purchase
           100
         );
 
@@ -181,9 +197,17 @@ describe("Crowdsale", () => {
           token.address,
           ether(1),
           "1000000",
+          // Allowed addresses
           [user1.address],
+          // Active on
           block.timestamp + 1000,
+          // Fund by date
+          block.timestamp + 10000,
+          // Funding goal
+          100,
+          // Min purchase
           1,
+          // Max purchase
           10
         );
 
@@ -252,10 +276,10 @@ describe("Crowdsale", () => {
         transaction = await crowdsale
           .connect(user1)
           .buyTokens(amount, { value: value });
-        result = await transaction.wait();
+        await transaction.wait();
 
         transaction = await crowdsale.connect(deployer).finalize();
-        result = await transaction.wait();
+        await transaction.wait();
       });
 
       it("transfers remaining tokens to owner", async () => {
@@ -312,6 +336,44 @@ describe("Crowdsale", () => {
         await expect(
           crowdsale.connect(deployer).addAllowedAddress(user2.address)
         ).to.be.reverted;
+      });
+    });
+  });
+
+  describe("Claiming Refund", () => {
+    describe("Success", () => {
+      it("allows users to claim refunds if the sale is cancelled", async () => {
+        // Check user's ether balance
+        let userEtherBalance = await ethers.provider.getBalance(user1.address);
+
+        // Send ether to the contract
+        let userSendEtherTransaction = await user1.sendTransaction({
+          to: crowdsale.address,
+          value: ether(1),
+        });
+        await userSendEtherTransaction.wait();
+
+        await ethers.provider.send("evm_increaseTime", [10000]); // Advance by 10000 seconds
+        await ethers.provider.send("evm_mine");
+
+        // Approve token transfer for refund
+        const tokenAmount = await token.balanceOf(user1.address);
+        await token.connect(user1).approve(crowdsale.address, tokenAmount);
+
+        let result = await crowdsale.connect(user1).claimRefund();
+        await result.wait();
+
+        expect(await token.balanceOf(user1.address)).to.equal(tokens(0));
+        // Subtract .0001 eth to account for gas
+        expect(userEtherBalance - userEtherBalanceAfter).to.be.lessThan(
+          1000000000000000
+        );
+      });
+    });
+
+    describe("Failure", () => {
+      it("prevents users from claiming refunds if the sale is not cancelled", async () => {
+        await expect(crowdsale.connect(user1).claimRefund()).to.be.reverted;
       });
     });
   });
