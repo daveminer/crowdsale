@@ -21,12 +21,15 @@ async function main() {
 
   console.log(`Token deployed to: ${token.address}\n`);
 
+  const block = await ethers.provider.getBlock("latest");
+
   const Crowdsale = await hre.ethers.getContractFactory("Crowdsale");
   let crowdsale = await Crowdsale.deploy(
     token.address,
     PRICE,
     ethers.utils.parseUnits(MAX_SUPPLY, "ether"),
-    []
+    [],
+    block.timestamp + 1000
   );
   await crowdsale.deployed();
 

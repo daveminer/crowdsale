@@ -88,6 +88,7 @@ function App() {
             path="/"
             element={
               <Home
+                provider={provider}
                 price={price}
                 crowdsale={crowdsale}
                 account={account}

@@ -10,15 +10,17 @@ contract Crowdsale {
     uint256 public maxTokens;
     uint256 public tokensSold;
     address[] public allowedAddresses;
+    uint256 public activeOn;
 
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
 
-    constructor(Token _token, uint256 _price, uint256 _maxTokens, address[] memory _initialAddresses) {
+    constructor(Token _token, uint256 _price, uint256 _maxTokens, address[] memory _initialAddresses, uint256 _activeOn) {
         owner = msg.sender;
         token = _token;
         price = _price;
         maxTokens = _maxTokens;
+        activeOn = _activeOn;
         for (uint256 i = 0; i < _initialAddresses.length; i++) {
             allowedAddresses.push(_initialAddresses[i]);
         }
@@ -33,7 +35,7 @@ contract Crowdsale {
     function buyTokens(uint256 _amount) public payable {
         require(msg.value == ((_amount / 1e18) * price));
         require(isAllowed(msg.sender), "Caller is not in the list of allowed addresses");
-
+        require(block.timestamp >= activeOn, "Crowdsale is not active");
         require(token.balanceOf(address(this)) >= _amount);
         require(token.transfer(msg.sender, _amount));
 

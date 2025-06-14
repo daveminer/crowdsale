@@ -20,6 +20,11 @@
         "internalType": "address[]",
         "name": "_initialAddresses",
         "type": "address[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_activeOn",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -62,6 +67,19 @@
     ],
     "name": "Finalize",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "activeOn",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [

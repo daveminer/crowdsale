@@ -26,10 +26,16 @@ describe("Crowdsale", () => {
     user1 = accounts[1];
     user2 = accounts[2];
 
+    const block = await ethers.provider.getBlock("latest");
+
     // Send tokens to crowdsale
-    crowdsale = await Crowdsale.deploy(token.address, ether(1), "1000000", [
-      user1.address,
-    ]);
+    crowdsale = await Crowdsale.deploy(
+      token.address,
+      ether(1),
+      "1000000",
+      [user1.address],
+      block.timestamp - 1000
+    );
     await crowdsale.deployed();
 
     let transaction = await token
@@ -96,6 +102,25 @@ describe("Crowdsale", () => {
           crowdsale.connect(user2).buyTokens(amount, { value: ether(10) })
         ).to.be.reverted;
       });
+
+      it("doesn't allow buying before the activation time", async () => {
+        const Crowdsale = await ethers.getContractFactory("Crowdsale");
+        const block = await ethers.provider.getBlock("latest");
+
+        let timelockedCrowdsale = await Crowdsale.deploy(
+          token.address,
+          ether(1),
+          "1000000",
+          [user1.address],
+          block.timestamp + 1000
+        );
+
+        await expect(
+          timelockedCrowdsale
+            .connect(user1)
+            .buyTokens(amount, { value: ether(10) })
+        ).to.be.revertedWith("Crowdsale is not active");
+      });
     });
   });
 
@@ -155,7 +180,7 @@ describe("Crowdsale", () => {
   });
 
   describe("Finalizing Sale", () => {
-    let transaction, result;
+    let transaction;
 
     let amount = tokens(10);
     let value = ether(10);
@@ -220,7 +245,7 @@ describe("Crowdsale", () => {
         ).to.be.reverted;
       });
 
-      it("wont' allow adding the same address twice", async () => {
+      it("won't allow adding the same address twice", async () => {
         await crowdsale.connect(deployer).addAllowedAddress(user2.address);
         await expect(
           crowdsale.connect(deployer).addAllowedAddress(user2.address)
