@@ -1,13 +1,19 @@
-# Sample Hardhat Project
+# Shiba Snax
+This project demonstrates a crowdsale contract with a number of features:
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+- Purchases are limited to an owner-controlled list of allowed addresses
+- Purchases activate at a specified time
+- Maximum and minimum purchase constraints
 
-Try running some of the following tasks:
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.js
+## Local Deployment
+
+To deploy:
+```
+npx hardhat run scripts/deploy.js --network localhost
+```
+
+To advance time past the activation time in the deployed contract:
+```
+npx hardhat run scripts/advanceTime.js --network localhost
 ```
