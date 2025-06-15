@@ -46,7 +46,7 @@ contract Crowdsale {
     }
 
     receive() external payable canBuy(msg.sender, msg.value) notCancelled {
-        sellTokens(msg.value);
+        giveTokens(msg.value);
     }
 
     modifier onlyOwner() {
@@ -77,7 +77,7 @@ contract Crowdsale {
     }
 
     function buyTokens(uint256 _amount) public payable canBuy(msg.sender, _amount) notCancelled {
-        sellTokens(msg.value);
+        giveTokens(msg.value);
     }
 
     function claimRefund() public cancelled {
@@ -139,7 +139,7 @@ contract Crowdsale {
         return allowedAddresses.length;
     }
 
-    function sellTokens(uint256 _amount) private {
+    function giveTokens(uint256 _amount) private {
         uint256 tokenAmount = (_amount * 1e18) / price;
 
         tokensSold += tokenAmount;
