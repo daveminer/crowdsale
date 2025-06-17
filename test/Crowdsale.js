@@ -10,6 +10,7 @@ const ether = tokens;
 describe("Crowdsale", () => {
   let crowdsale, result, token;
   let accounts, deployer, user1;
+  let tokenPrice = 0.25;
 
   beforeEach(async () => {
     // Load Contracts
@@ -31,7 +32,7 @@ describe("Crowdsale", () => {
     // Send tokens to crowdsale
     crowdsale = await Crowdsale.deploy(
       token.address,
-      ether(1),
+      ether(tokenPrice),
       "1000000",
       // Allowed addresses
       [user1.address],
@@ -67,49 +68,51 @@ describe("Crowdsale", () => {
 
   describe("Buying Tokens", () => {
     let transaction, result;
-    let amount = tokens(10);
+    let ethAmount = ether(10);
+    let tokenAmount = tokens(40);
 
     describe("Success", () => {
       beforeEach(async () => {
         transaction = await crowdsale
           .connect(user1)
-          .buyTokens(amount, { value: ether(10) });
+          .buyTokens(tokenAmount, { value: ethAmount });
         result = await transaction.wait();
       });
 
       it("transfers tokens", async () => {
         expect(await token.balanceOf(crowdsale.address)).to.equal(
-          tokens(999990)
+          tokens(999960)
         );
-        expect(await token.balanceOf(user1.address)).to.equal(amount);
+        expect(await token.balanceOf(user1.address)).to.equal(tokenAmount);
       });
 
       it("updates contracts ether balance", async () => {
         expect(await ethers.provider.getBalance(crowdsale.address)).to.equal(
-          amount
+          ethAmount
         );
       });
 
       it("updates tokensSold", async () => {
-        expect(await crowdsale.tokensSold()).to.equal(amount);
+        expect(await crowdsale.tokensSold()).to.equal(tokenAmount);
       });
 
       it("emits a buy event", async () => {
         await expect(transaction)
           .to.emit(crowdsale, "Buy")
-          .withArgs(amount, await user1.getAddress());
+          .withArgs(tokenAmount, await user1.getAddress());
       });
     });
 
     describe("Failure", () => {
       it("rejects insufficient ETH", async () => {
-        await expect(crowdsale.connect(user1).buyTokens(amount, { value: 0 }))
-          .to.be.reverted;
+        await expect(
+          crowdsale.connect(user1).buyTokens(tokenAmount, { value: 0 })
+        ).to.be.reverted;
       });
 
       it("rejects non-allowed addresses", async () => {
         await expect(
-          crowdsale.connect(user2).buyTokens(amount, { value: ether(10) })
+          crowdsale.connect(user2).buyTokens(tokenAmount, { value: ethAmount })
         ).to.be.reverted;
       });
 
@@ -119,7 +122,7 @@ describe("Crowdsale", () => {
 
         let timelockedCrowdsale = await Crowdsale.deploy(
           token.address,
-          ether(1),
+          ether(tokenPrice),
           "1000000",
           // Allowed addresses
           [user1.address],
@@ -138,13 +141,15 @@ describe("Crowdsale", () => {
         await expect(
           timelockedCrowdsale
             .connect(user1)
-            .buyTokens(amount, { value: ether(10) })
+            .buyTokens(tokenAmount, { value: ethAmount })
         ).to.be.revertedWith("Crowdsale is not active");
       });
 
       it("rejects minimum purchase", async () => {
         await expect(
-          crowdsale.connect(user1).buyTokens(tokens(0.9), { value: ether(0.9) })
+          crowdsale
+            .connect(user1)
+            .buyTokens(tokens(0.9), { value: ether(0.225) })
         ).to.be.revertedWith("Amount is less than the minimum purchase");
       });
 
@@ -152,7 +157,7 @@ describe("Crowdsale", () => {
         await expect(
           crowdsale
             .connect(user1)
-            .buyTokens(tokens(100.1), { value: ether(100.1) })
+            .buyTokens(tokens(100.1), { value: ether(25.025) })
         ).to.be.revertedWith("Amount is greater than the maximum purchase");
       });
     });
@@ -160,7 +165,7 @@ describe("Crowdsale", () => {
 
   describe("Sending ETH", () => {
     let transaction, result;
-    let amount = ether(10);
+    let amount = ether(0.25);
 
     describe("Success", () => {
       beforeEach(async () => {
@@ -178,7 +183,7 @@ describe("Crowdsale", () => {
       });
 
       it("updates user token balance", async () => {
-        expect(await token.balanceOf(user1.address)).to.equal(amount);
+        expect(await token.balanceOf(user1.address)).to.equal(tokens(1));
       });
     });
 
@@ -223,13 +228,15 @@ describe("Crowdsale", () => {
         await expect(
           crowdsale
             .connect(user1)
-            .buyTokens(tokens(100.1), { value: ether(100.1) })
+            .buyTokens(tokens(100.1), { value: ether(25.025) })
         ).to.be.revertedWith("Amount is greater than the maximum purchase");
       });
 
       it("reject purchases below the minimum purchase", async () => {
         await expect(
-          crowdsale.connect(user1).buyTokens(tokens(0.9), { value: ether(0.9) })
+          crowdsale
+            .connect(user1)
+            .buyTokens(tokens(0.9), { value: ether(0.225) })
         ).to.be.revertedWith("Amount is less than the minimum purchase");
       });
 
@@ -237,7 +244,7 @@ describe("Crowdsale", () => {
         await expect(
           crowdsale
             .connect(user1)
-            .buyTokens(tokens(100.1), { value: ether(100.1) })
+            .buyTokens(tokens(100.1), { value: ether(25.025) })
         ).to.be.revertedWith("Amount is greater than the maximum purchase");
       });
     });
@@ -269,13 +276,13 @@ describe("Crowdsale", () => {
     let transaction;
 
     let amount = tokens(10);
-    let value = ether(10);
+    let ethAmount = ether(2.5);
 
     describe("Success", () => {
       beforeEach(async () => {
         transaction = await crowdsale
           .connect(user1)
-          .buyTokens(amount, { value: value });
+          .buyTokens(amount, { value: ethAmount });
         await transaction.wait();
 
         transaction = await crowdsale.connect(deployer).finalize();
@@ -298,7 +305,7 @@ describe("Crowdsale", () => {
       it("emits Finalize event", async () => {
         await expect(transaction)
           .to.emit(crowdsale, "Finalize")
-          .withArgs(amount, value);
+          .withArgs(amount, ethAmount);
       });
     });
 
@@ -362,6 +369,10 @@ describe("Crowdsale", () => {
 
         let result = await crowdsale.connect(user1).claimRefund();
         await result.wait();
+
+        let userEtherBalanceAfter = await ethers.provider.getBalance(
+          user1.address
+        );
 
         expect(await token.balanceOf(user1.address)).to.equal(tokens(0));
         // Subtract .0001 eth to account for gas
