@@ -55,22 +55,28 @@ contract Crowdsale {
     }
 
     modifier canBuy(address _address, uint256 _amount) {
+        // Common checks for both receive() and buyTokens()
         require(isAllowed(msg.sender), "Caller is not in the list of allowed addresses");
         require(block.timestamp >= activeOn, "Crowdsale is not active");
 
+        // Calculate token amount based on transaction type
+        uint256 tokenAmount;
         if (msg.data.length == 0) {
             // This is a receive() call
             require(msg.value > 0, "Must send ETH");
-            require(token.balanceOf(address(this)) >= (msg.value * 1e18) / price, "Insufficient tokens");
-            require(token.transfer(msg.sender, (msg.value * 1e18) / price), "Transfer failed");
+            tokenAmount = (msg.value * 1e18) / price;
         } else {
             // This is a buyTokens() call
             require(msg.value == (_amount * price) / 1e18, "Amount is not correct");
-            require(_amount >= minPurchase * 1e18, "Amount is less than the minimum purchase");
-            require(_amount <= maxPurchase * 1e18, "Amount is greater than the maximum purchase");
-            require(token.balanceOf(address(this)) >= _amount, "Insufficient tokens");
-            require(token.transfer(msg.sender, _amount), "Transfer failed");
+            tokenAmount = _amount;
         }
+
+        // Common token amount checks
+        require(tokenAmount >= minPurchase * 1e18, "Amount is less than the minimum purchase");
+        require(tokenAmount <= maxPurchase * 1e18, "Amount is greater than the maximum purchase");
+        require(token.balanceOf(address(this)) >= tokenAmount, "Insufficient tokens");
+        require(token.transfer(msg.sender, tokenAmount), "Transfer failed");
+
         _;
     }
 
