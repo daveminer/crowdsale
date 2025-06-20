@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./Token.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 contract Crowdsale {
     address public owner;
@@ -9,22 +10,24 @@ contract Crowdsale {
     uint256 public price;
     uint256 public maxTokens;
     uint256 public tokensSold;
-    address[] public allowedAddresses;
+    bytes32 public merkleRoot;
     uint256 public activeOn;
     uint256 public fundByDate;
     uint256 public fundingGoal;
     uint256 public minPurchase;
     uint256 public maxPurchase;
     mapping(address => uint256) public purchases;
+    mapping(address => bool) public approvedAddresses;
     
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
+    event AddressApproved(address indexed addr);
 
     constructor(
         Token _token,
         uint256 _price,
         uint256 _maxTokens,
-        address[] memory _initialAddresses,
+        bytes32 _merkleRoot,
         uint256 _activeOn,
         uint256 _fundByDate,
         uint256 _fundingGoal,
@@ -35,14 +38,12 @@ contract Crowdsale {
         token = _token;
         price = _price;
         maxTokens = _maxTokens;
+        merkleRoot = _merkleRoot;
         activeOn = _activeOn;
         fundByDate = _fundByDate;
         fundingGoal = _fundingGoal;
         minPurchase = _minPurchase;
         maxPurchase = _maxPurchase;
-        for (uint256 i = 0; i < _initialAddresses.length; i++) {
-            allowedAddresses.push(_initialAddresses[i]);
-        }
     }
 
     receive() external payable canBuy(msg.sender, msg.value) notCancelled {
@@ -90,8 +91,15 @@ contract Crowdsale {
         _;
     }
 
-    function buyTokens(uint256 _amount) public payable canBuy(msg.sender, _amount) notCancelled {
+    function buyTokens(uint256 _amount, bytes32[] calldata _proof) public payable canBuy(msg.sender, _amount) notCancelled {
+        require(verifyMerkleProof(msg.sender, _proof), "Invalid Merkle proof");
         sellTokens(msg.value);
+    }
+
+    function approveAddressWithProof(address _address, bytes32[] calldata _proof) public {
+        require(verifyMerkleProof(_address, _proof), "Invalid Merkle proof");
+        approvedAddresses[_address] = true;
+        emit AddressApproved(_address);
     }
 
     function claimRefund() public cancelled {
@@ -114,6 +122,10 @@ contract Crowdsale {
         price = _price;
     }
 
+    function setMerkleRoot(bytes32 _merkleRoot) public onlyOwner {
+        merkleRoot = _merkleRoot;
+    }
+
     function finalize() public onlyOwner {
         require(token.transfer(owner, token.balanceOf(address(this))));
 
@@ -124,33 +136,16 @@ contract Crowdsale {
         emit Finalize(tokensSold, value);
     }
 
-    function addAllowedAddress(address _address) public onlyOwner {
-        require(!isAllowed(_address), "Address is already in the allowed list");
-        allowedAddresses.push(_address);
-    }
-
-    function removeAllowedAddress(address _address) public onlyOwner {
-        require(isAllowed(_address), "Address is not in the allowed list");
-        for (uint256 i = 0; i < allowedAddresses.length; i++) {
-            if (allowedAddresses[i] == _address) {
-                allowedAddresses[i] = allowedAddresses[allowedAddresses.length - 1];
-                allowedAddresses.pop();
-                break;
-            }
-        }
-    }
-
     function isAllowed(address _address) public view returns (bool) {
-        for (uint256 i = 0; i < allowedAddresses.length; i++) {
-            if (allowedAddresses[i] == _address) {
-                return true;
-            }
-        }
-        return false;
+        return approvedAddresses[_address];
     }
 
-    function allowedAddressesLength() public view returns (uint256) {
-        return allowedAddresses.length;
+    function verifyMerkleProof(
+        address _address,
+        bytes32[] calldata _proof
+    ) public view returns (bool) {
+        bytes32 leaf = keccak256(abi.encode(_address));
+        return MerkleProof.verify(_proof, merkleRoot, leaf);
     }
 
     function sellTokens(uint256 _amount) private {
