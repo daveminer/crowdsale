@@ -57,7 +57,7 @@ contract Crowdsale {
 
     modifier canBuy(address _address, uint256 _amount) {
         // Common checks for both receive() and buyTokens()
-        require(isAllowed(msg.sender), "Caller is not in the list of allowed addresses");
+        //require(isAllowed(msg.sender), "Caller is not in the list of allowed addresses");
         require(block.timestamp >= activeOn, "Crowdsale is not active");
 
         // Calculate token amount based on transaction type
@@ -144,7 +144,8 @@ contract Crowdsale {
         address _address,
         bytes32[] calldata _proof
     ) public view returns (bool) {
-        bytes32 leaf = keccak256(abi.encode(_address));
+        // Double keccak256 for OpenZeppelin merkle-tree library
+        bytes32 leaf = keccak256(abi.encode(keccak256(abi.encode(_address))));
         return MerkleProof.verify(_proof, merkleRoot, leaf);
     }
 

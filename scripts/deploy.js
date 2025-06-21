@@ -49,6 +49,7 @@ async function main() {
   const allowedAddressesPath = path.join(
     __dirname,
     '..',
+    'src',
     'allowedAddresses.json'
   )
 
@@ -58,9 +59,10 @@ async function main() {
     )
   }
 
-  const allowedAddresses = JSON.parse(
+  const allowedAddressesData = JSON.parse(
     fs.readFileSync(allowedAddressesPath, 'utf8')
   )
+  const allowedAddresses = allowedAddressesData.addresses
 
   if (!Array.isArray(allowedAddresses) || allowedAddresses.length === 0) {
     throw new Error('No valid addresses found in allowedAddresses.json')
@@ -73,7 +75,9 @@ async function main() {
   // Create Merkle root from allowed addresses
   const leaves = allowedAddresses.map((address) =>
     ethers.utils.keccak256(
-      ethers.utils.defaultAbiCoder.encode(['address'], [address])
+      ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(['address'], [address])
+      )
     )
   )
 

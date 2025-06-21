@@ -1,93 +1,106 @@
-import { Form, Button, Row, Col, Table } from "react-bootstrap";
-import { useEffect, useState } from "react";
+import { Form, Button, Row, Col, Table } from 'react-bootstrap'
+import { useEffect, useState } from 'react'
+import { StandardMerkleTree } from '@openzeppelin/merkle-tree'
+import allowedAddressesData from '../allowedAddresses.json'
 
 const AllowedAddresses = ({ provider, crowdsale }) => {
-  const [allowedAddresses, setAllowedAddresses] = useState([]);
-  const [newAddress, setNewAddress] = useState("");
-  const [isWaiting, setIsWaiting] = useState(false);
-  const [selectedAddress, setSelectedAddress] = useState("");
+  const [allowedAddresses, setAllowedAddresses] = useState([])
+  const [newAddress, setNewAddress] = useState('')
+  const [isWaiting, setIsWaiting] = useState(false)
 
   useEffect(() => {
     const loadAllowedAddresses = async () => {
       try {
-        const length = await crowdsale.allowedAddressesLength();
-
-        // Fetch each address
-        const addresses = [];
-        for (let i = 0; i < length; i++) {
-          const address = await crowdsale.allowedAddresses(i);
-          if (address) addresses.push(address);
-        }
-
-        setAllowedAddresses(addresses);
+        // Load addresses from the JSON file instead of contract
+        const addresses = allowedAddressesData.addresses || []
+        setAllowedAddresses(addresses)
       } catch (error) {
-        console.error("Error loading addresses:", error);
+        console.error('Error loading addresses:', error)
       }
-    };
+    }
 
     if (crowdsale) {
-      loadAllowedAddresses();
+      loadAllowedAddresses()
     }
-  }, [crowdsale]);
+  }, [crowdsale])
 
   const addAddressHandler = async (e) => {
-    e.preventDefault();
-    setIsWaiting(true);
+    e.preventDefault()
+    setIsWaiting(true)
 
     try {
-      const transaction = await crowdsale.addAllowedAddress(newAddress);
-      const receipt = await transaction.wait();
+      // Get the signer
+      const signer = await provider.getSigner()
 
-      const length = await crowdsale.allowedAddressesLength();
+      // Load current addresses from JSON file
+      const currentAddresses = allowedAddressesData.addresses || []
 
-      const addresses = [];
-      for (let i = 0; i < length; i++) {
-        const address = await crowdsale.allowedAddresses(i);
-        if (address) addresses.push(address);
+      // Check if address is already in the list
+      if (currentAddresses.includes(newAddress)) {
+        window.alert('Address is already in the allowed list')
+        setIsWaiting(false)
+        return
       }
 
-      setAllowedAddresses(addresses);
-      setNewAddress(""); // Clear the input
-    } catch (error) {
-      window.alert("Error adding address: " + error.message);
-    }
+      // Create new array with the new address
+      const updatedAddresses = [...currentAddresses, newAddress]
+      const values = updatedAddresses.map((address) => [address])
+      const tree = StandardMerkleTree.of(values, ['address'])
 
-    setIsWaiting(false);
-  };
+      // Update the Merkle root first
+      const updateRootTransaction = await crowdsale
+        .connect(signer)
+        .setMerkleRoot(tree.root)
+      await updateRootTransaction.wait()
 
-  const removeAddressHandler = async () => {
-    if (!selectedAddress) return;
+      console.log('Merkle root updated to:', tree.root)
 
-    setIsWaiting(true);
-    try {
-      const signer = await provider.getSigner();
-      const crowdsaleWithSigner = crowdsale.connect(signer);
+      // Now generate proof for the new address using the updated tree
+      const userValue = [newAddress]
+      const proof = tree.getProof(userValue)
 
-      const transaction = await crowdsaleWithSigner.removeAllowedAddress(
-        selectedAddress
-      );
+      console.log('Generated Merkle proof for new address:', newAddress)
+      console.log('Merkle proof:', proof)
 
-      // Reload addresses
-      const length = await crowdsale.allowedAddressesLength();
+      // Approve the address with proof
+      const approveTransaction = await crowdsale
+        .connect(signer)
+        .approveAddressWithProof(newAddress, proof)
+      await approveTransaction.wait()
 
-      const addresses = [];
-      for (let i = 0; i < length.toNumber(); i++) {
-        const address = await crowdsale.allowedAddresses(i);
-        if (address) addresses.push(address);
+      console.log('Address approved with proof')
+
+      // Update local state
+      setAllowedAddresses(updatedAddresses)
+      setNewAddress('') // Clear the input
+
+      // Log the updated data for manual JSON file update
+      const updatedData = {
+        ...allowedAddressesData,
+        addresses: updatedAddresses,
+        merkleRoot: tree.root,
+        lastUpdated: new Date().toISOString(),
       }
 
-      setAllowedAddresses(addresses);
-      setSelectedAddress(""); // Clear selection
+      console.log('=== MANUAL UPDATE REQUIRED ===')
+      console.log(
+        'Please update src/allowedAddresses.json with the following data:'
+      )
+      console.log(JSON.stringify(updatedData, null, 2))
+      console.log('=== END MANUAL UPDATE ===')
+
+      console.log('New addresses list:', updatedAddresses)
+      console.log('New Merkle root:', tree.root)
     } catch (error) {
-      console.error("Error removing address:", error);
-      window.alert("Error removing address: " + error.message);
+      window.alert('Error adding address: ' + error.message)
     }
-    setIsWaiting(false);
-  };
+
+    setIsWaiting(false)
+  }
 
   return (
     <>
-      <div className="my-4 text-center">
+      <div className='my-4 text-center'>
         <h1>Allowed Addresses</h1>
         <Table>
           <tbody>
@@ -100,50 +113,25 @@ const AllowedAddresses = ({ provider, crowdsale }) => {
         </Table>
       </div>
       <Form onSubmit={addAddressHandler}>
-        <Form.Group as={Row} className="my-4 justify-content-center">
+        <Form.Group as={Row} className='my-4 justify-content-center'>
           <Col xs={8} md={6}>
             <Form.Control
-              type="text"
-              placeholder="Enter Address"
+              type='text'
+              placeholder='Enter Address'
               value={newAddress}
               onChange={(e) => setNewAddress(e.target.value)}
               required
             />
           </Col>
-          <Col xs="auto">
-            <Button variant="primary" type="submit" disabled={isWaiting}>
-              {isWaiting ? "Adding..." : "Add Address"}
+          <Col xs='auto'>
+            <Button variant='primary' type='submit' disabled={isWaiting}>
+              {isWaiting ? 'Adding...' : 'Add Address'}
             </Button>
           </Col>
         </Form.Group>
       </Form>
-
-      <Form.Group as={Row} className="my-4 justify-content-center">
-        <Col xs={8} md={6}>
-          <Form.Select
-            value={selectedAddress}
-            onChange={(e) => setSelectedAddress(e.target.value)}
-          >
-            <option value="">Select an address to remove</option>
-            {allowedAddresses.map((address) => (
-              <option key={address} value={address}>
-                {address}
-              </option>
-            ))}
-          </Form.Select>
-        </Col>
-        <Col xs="auto">
-          <Button
-            variant="danger"
-            onClick={removeAddressHandler}
-            disabled={isWaiting || !selectedAddress}
-          >
-            {isWaiting ? "Removing..." : "Remove Address"}
-          </Button>
-        </Col>
-      </Form.Group>
     </>
-  );
-};
+  )
+}
 
-export default AllowedAddresses;
+export default AllowedAddresses
