@@ -23,6 +23,10 @@ contract Crowdsale {
     event Finalize(uint256 tokensSold, uint256 ethRaised);
     event AddressApproved(address indexed addr);
 
+    error NoEtherSentForSimulation();               // msg.value == 0
+    error IncorrectEthSent(uint256 sent, uint256 expected);
+    error UnsupportedFunction(bytes4 sig);
+
     constructor(
         Token _token,
         uint256 _price,
@@ -48,6 +52,10 @@ contract Crowdsale {
 
     receive() external payable canBuy(msg.sender, msg.value) notCancelled {
         sellTokens(msg.value);
+    }
+
+    fallback() external payable {
+        revert UnsupportedFunction(msg.sig);
     }
 
     modifier onlyOwner() {
@@ -92,6 +100,12 @@ contract Crowdsale {
     }
 
     function buyTokens(uint256 _amount, bytes32[] calldata _proof) public payable canBuy(msg.sender, _amount) notCancelled {
+        if (msg.value == 0) revert NoEtherSentForSimulation();
+
+        uint256 required = (_amount * price) / 1e18;
+        if (msg.value != required) revert IncorrectEthSent(msg.value, required);
+
+        
         require(verifyMerkleProof(msg.sender, _proof), "Invalid Merkle proof");
         sellTokens(msg.value);
     }
@@ -144,7 +158,7 @@ contract Crowdsale {
         address _address,
         bytes32[] calldata _proof
     ) public view returns (bool) {
-        // Double keccak256 for OpenZeppelin merkle-tree library
+        // Double keccak256 to mirror OpenZeppelin StandardMerkleTree's standard hashing
         bytes32 leaf = keccak256(abi.encode(keccak256(abi.encode(_address))));
         return MerkleProof.verify(_proof, merkleRoot, leaf);
     }

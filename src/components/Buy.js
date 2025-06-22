@@ -6,13 +6,20 @@ import Col from 'react-bootstrap/Col'
 import Spinner from 'react-bootstrap/Spinner'
 import { ethers } from 'ethers'
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree'
-import allowedAddressesData from '../allowedAddresses.json'
+import { getAllowedAddresses } from '../utils/allowedAddresses'
 
 const Buy = ({ provider, price, crowdsale, setIsLoading }) => {
   const [activeTimestamp, setActiveTimestamp] = useState(0)
   const [currentTimestamp, setCurrentTimestamp] = useState(0)
   const [amount, setAmount] = useState(0)
   const [isWaiting, setIsWaiting] = useState(false)
+  const [allowedAddresses, setAllowedAddresses] = useState([])
+
+  useEffect(() => {
+    // Load allowed addresses from localStorage
+    const addresses = getAllowedAddresses()
+    setAllowedAddresses(addresses)
+  }, [])
 
   const buyHandler = async (e) => {
     e.preventDefault()
@@ -23,17 +30,18 @@ const Buy = ({ provider, price, crowdsale, setIsLoading }) => {
       const signer = await provider.getSigner()
       const userAddress = await signer.getAddress()
 
-      const value = ethers.utils.parseUnits(
-        (amount * price).toString(),
-        'ether'
-      )
       const formattedAmount = ethers.utils.parseUnits(
         amount.toString(),
         'ether'
       )
 
+      // Calculate ETH value using the same formula as the smart contract
+      const priceInWei = ethers.utils.parseUnits(price.toString(), 'ether')
+      const value = formattedAmount
+        .mul(priceInWei)
+        .div(ethers.utils.parseUnits('1', 'ether'))
+
       // Create Merkle tree from allowed addresses
-      const allowedAddresses = allowedAddressesData.addresses
       const values = allowedAddresses.map((address) => [address])
       const tree = StandardMerkleTree.of(values, ['address'])
 

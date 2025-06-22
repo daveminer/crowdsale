@@ -6,8 +6,6 @@
 // global scope, and execute the script.
 const hre = require('hardhat')
 const { ethers } = require('hardhat')
-const fs = require('fs')
-const path = require('path')
 
 // Simple function to build a proper Merkle tree
 function buildMerkleTree(leaves) {
@@ -37,6 +35,10 @@ async function main() {
   const MAX_SUPPLY = '1000000'
   const PRICE = ethers.utils.parseUnits('0.025', 'ether')
 
+  // Initial allowed address (same as in localStorage utility)
+  const INITIAL_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  const allowedAddresses = [INITIAL_ADDRESS]
+
   const Token = await hre.ethers.getContractFactory('Token')
   let token = await Token.deploy(NAME, SYMBOL, MAX_SUPPLY)
   await token.deployed()
@@ -45,39 +47,12 @@ async function main() {
 
   const block = await ethers.provider.getBlock('latest')
 
-  // Read allowed addresses from allowedAddresses.json
-  const allowedAddressesPath = path.join(
-    __dirname,
-    '..',
-    'src',
-    'allowedAddresses.json'
-  )
-
-  if (!fs.existsSync(allowedAddressesPath)) {
-    throw new Error(
-      `allowedAddresses.json file not found at ${allowedAddressesPath}`
-    )
-  }
-
-  const allowedAddressesData = JSON.parse(
-    fs.readFileSync(allowedAddressesPath, 'utf8')
-  )
-  const allowedAddresses = allowedAddressesData.addresses
-
-  if (!Array.isArray(allowedAddresses) || allowedAddresses.length === 0) {
-    throw new Error('No valid addresses found in allowedAddresses.json')
-  }
-
-  console.log(
-    `Loaded ${allowedAddresses.length} allowed addresses from allowedAddresses.json`
-  )
+  console.log(`Using initial allowed address: ${INITIAL_ADDRESS}`)
 
   // Create Merkle root from allowed addresses
   const leaves = allowedAddresses.map((address) =>
     ethers.utils.keccak256(
-      ethers.utils.keccak256(
-        ethers.utils.defaultAbiCoder.encode(['address'], [address])
-      )
+      ethers.utils.defaultAbiCoder.encode(['address'], [address])
     )
   )
 
@@ -116,23 +91,19 @@ async function main() {
 
   console.log(`Tokens transferred to Crowdsale\n`)
 
-  // Update allowedAddresses.json with deployment information
-  const deploymentInfo = {
-    addresses: allowedAddresses,
-    merkleRoot: merkleRoot,
-    crowdsaleAddress: crowdsale.address,
-    tokenAddress: token.address,
-    deployerAddress: deployer.address,
-    deployedAt: new Date().toISOString(),
-  }
+  // Log deployment information
+  console.log(`=== DEPLOYMENT SUMMARY ===`)
+  console.log(`Initial allowed address: ${INITIAL_ADDRESS}`)
+  console.log(`Merkle root: ${merkleRoot}`)
+  console.log(`Crowdsale address: ${crowdsale.address}`)
+  console.log(`Token address: ${token.address}`)
+  console.log(`Deployer address: ${deployer.address}`)
+  console.log(`Deployed at: ${new Date().toISOString()}`)
+  console.log(`=== END DEPLOYMENT SUMMARY ===`)
 
-  fs.writeFileSync(
-    allowedAddressesPath,
-    JSON.stringify(deploymentInfo, null, 2)
+  console.log(
+    `\nNote: The React app will automatically initialize localStorage with the initial address when it starts.`
   )
-
-  console.log(`Updated allowedAddresses.json with deployment information`)
-  console.log(`Allowed addresses: ${JSON.stringify(allowedAddresses, null, 2)}`)
 }
 
 // We recommend this pattern to be able to use async/await everywhere

@@ -1,7 +1,10 @@
 import { Form, Button, Row, Col, Table } from 'react-bootstrap'
 import { useEffect, useState } from 'react'
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree'
-import allowedAddressesData from '../allowedAddresses.json'
+import {
+  getAllowedAddresses,
+  addAllowedAddress,
+} from '../utils/allowedAddresses'
 
 const AllowedAddresses = ({ provider, crowdsale }) => {
   const [allowedAddresses, setAllowedAddresses] = useState([])
@@ -11,8 +14,8 @@ const AllowedAddresses = ({ provider, crowdsale }) => {
   useEffect(() => {
     const loadAllowedAddresses = async () => {
       try {
-        // Load addresses from the JSON file instead of contract
-        const addresses = allowedAddressesData.addresses || []
+        // Load addresses from localStorage
+        const addresses = getAllowedAddresses()
         setAllowedAddresses(addresses)
       } catch (error) {
         console.error('Error loading addresses:', error)
@@ -22,7 +25,7 @@ const AllowedAddresses = ({ provider, crowdsale }) => {
     if (crowdsale) {
       loadAllowedAddresses()
     }
-  }, [crowdsale])
+  }, [crowdsale, provider])
 
   const addAddressHandler = async (e) => {
     e.preventDefault()
@@ -31,27 +34,27 @@ const AllowedAddresses = ({ provider, crowdsale }) => {
     try {
       // Get the signer
       const signer = await provider.getSigner()
-
-      // Load current addresses from JSON file
-      const currentAddresses = allowedAddressesData.addresses || []
-
       // Check if address is already in the list
-      if (currentAddresses.includes(newAddress)) {
+      if (allowedAddresses.includes(newAddress)) {
         window.alert('Address is already in the allowed list')
         setIsWaiting(false)
         return
       }
 
       // Create new array with the new address
-      const updatedAddresses = [...currentAddresses, newAddress]
+      const updatedAddresses = [...allowedAddresses, newAddress]
       const values = updatedAddresses.map((address) => [address])
       const tree = StandardMerkleTree.of(values, ['address'])
 
       // Update the Merkle root first
-      const updateRootTransaction = await crowdsale
-        .connect(signer)
-        .setMerkleRoot(tree.root)
-      await updateRootTransaction.wait()
+      try {
+        const updateRootTransaction = await crowdsale
+          .connect(signer)
+          .setMerkleRoot(tree.root)
+        await updateRootTransaction.wait()
+      } catch (error) {
+        throw error
+      }
 
       console.log('Merkle root updated to:', tree.root)
 
@@ -63,31 +66,21 @@ const AllowedAddresses = ({ provider, crowdsale }) => {
       console.log('Merkle proof:', proof)
 
       // Approve the address with proof
-      const approveTransaction = await crowdsale
-        .connect(signer)
-        .approveAddressWithProof(newAddress, proof)
-      await approveTransaction.wait()
+      try {
+        const approveTransaction = await crowdsale
+          .connect(signer)
+          .approveAddressWithProof(newAddress, proof)
+        await approveTransaction.wait()
+      } catch (error) {
+        throw error
+      }
 
       console.log('Address approved with proof')
 
-      // Update local state
+      // Update localStorage and local state
+      addAllowedAddress(newAddress)
       setAllowedAddresses(updatedAddresses)
       setNewAddress('') // Clear the input
-
-      // Log the updated data for manual JSON file update
-      const updatedData = {
-        ...allowedAddressesData,
-        addresses: updatedAddresses,
-        merkleRoot: tree.root,
-        lastUpdated: new Date().toISOString(),
-      }
-
-      console.log('=== MANUAL UPDATE REQUIRED ===')
-      console.log(
-        'Please update src/allowedAddresses.json with the following data:'
-      )
-      console.log(JSON.stringify(updatedData, null, 2))
-      console.log('=== END MANUAL UPDATE ===')
 
       console.log('New addresses list:', updatedAddresses)
       console.log('New Merkle root:', tree.root)
